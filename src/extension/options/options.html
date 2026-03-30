@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChatGPT Sync Options</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>高级设置</h1>
+        <p>告警、自动分类和输出路径配置</p>
+      </header>
+
+      <section class="card">
+        <h2>告警</h2>
+        <label>Webhook URL <input id="webhook-url" type="url" placeholder="https://example.com/webhook" /></label>
+      </section>
+
+      <section class="card">
+        <h2>分类策略</h2>
+        <label class="inline"><input id="auto-classify-enabled" type="checkbox" /> 启用自动分类（低置信度回退手动）</label>
+        <label>自动分类阈值（0-1）<input id="auto-threshold" type="number" min="0" max="1" step="0.01" /></label>
+        <label>默认目录 <input id="default-directory" type="text" /></label>
+      </section>
+
+      <section class="card">
+        <h2>发布输出</h2>
+        <label>仓库根目录 <input id="publish-root-path" type="text" placeholder="sync-data" /></label>
+      </section>
+
+      <section class="card actions">
+        <button id="save-options">保存</button>
+        <p id="status"></p>
+      </section>
+    </main>
+    <script type="module" src="./options.js"></script>
+  </body>
+</html>

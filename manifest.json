@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Sync GitHub",
+  "version": "0.1.0",
+  "description": "Manual and scheduled ChatGPT chat sync to GitHub with raw + categorized outputs.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://api.github.com/*",
+    "https://chat.openai.com/*",
+    "https://chatgpt.com/*"
+  ],
+  "background": {
+    "service_worker": "src/extension/background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": ["src/extension/content/collector.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "ChatGPT Sync",
+    "default_popup": "src/extension/popup/popup.html"
+  },
+  "options_page": "src/extension/options/options.html"
+}

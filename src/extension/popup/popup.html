@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ChatGPT Sync</title>
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <header class="hero">
+        <h1>ChatGPT Sync</h1>
+        <p>手动/自动同步到 GitHub</p>
+      </header>
+
+      <section class="card">
+        <h2>GitHub 配置</h2>
+        <label>Owner <input id="github-owner" type="text" /></label>
+        <label>Repo <input id="github-repo" type="text" /></label>
+        <label>Branch <input id="github-branch" type="text" value="main" /></label>
+        <label>
+          Auth Mode
+          <select id="github-auth-mode">
+            <option value="pat">PAT</option>
+            <option value="oauth">OAuth</option>
+            <option value="app">App</option>
+          </select>
+        </label>
+        <label>Token <input id="github-token" type="password" /></label>
+      </section>
+
+      <section class="card">
+        <h2>自动同步</h2>
+        <label class="inline"><input id="auto-enabled" type="checkbox" /> 启用自动同步</label>
+        <label>周期（分钟）<input id="auto-interval" type="number" min="1" /></label>
+        <label>最小周期（分钟）<input id="auto-min" type="number" min="1" /></label>
+        <label>最大周期（分钟）<input id="auto-max" type="number" min="1" /></label>
+      </section>
+
+      <section class="card">
+        <h2>会话采集与手动同步</h2>
+        <div class="actions">
+          <button id="collect-current">采集当前会话</button>
+          <button id="refresh-sessions">刷新会话列表</button>
+        </div>
+        <div id="session-list" class="session-list"></div>
+
+        <h3>分类</h3>
+        <label>目录 <input id="manual-directory" type="text" placeholder="general" /></label>
+        <label>业务主题/进展标签（逗号分隔） <input id="manual-business-tags" type="text" /></label>
+        <div id="role-list" class="role-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="actions">
+          <button id="save-config">保存配置</button>
+          <button id="manual-sync">手动同步</button>
+          <button id="run-auto-sync">立即自动同步</button>
+        </div>
+        <p id="status" class="status"></p>
+      </section>
+
+      <footer class="footer">
+        <a href="../options/options.html" target="_blank">打开高级设置</a>
+      </footer>
+    </main>
+    <script type="module" src="./popup.js"></script>
+  </body>
+</html>

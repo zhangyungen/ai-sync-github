@@ -1,0 +1,143 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 380px;
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 231, 210, 0.8), transparent 45%),
+    radial-gradient(circle at 90% 20%, rgba(194, 228, 255, 0.8), transparent 40%),
+    #f7f8fb;
+  color: #18202b;
+}
+
+.panel {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.hero {
+  background: linear-gradient(120deg, #0f766e, #14532d);
+  color: #effffb;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.hero p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #dde3ec;
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.card h2,
+.card h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+}
+
+input,
+select {
+  border: 1px solid #c8d3e0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #fbfdff;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #0f766e;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0b5f59;
+}
+
+.session-list {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #d5dfec;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  display: grid;
+  gap: 6px;
+}
+
+.session-item {
+  border: 1px solid #dbe3f0;
+  border-radius: 8px;
+  padding: 6px;
+  background: #fefefe;
+}
+
+.session-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.session-meta {
+  font-size: 11px;
+  color: #5d6a7c;
+}
+
+.role-list {
+  display: grid;
+  gap: 6px;
+}
+
+.status {
+  margin: 0;
+  min-height: 18px;
+  font-size: 12px;
+  color: #273449;
+}
+
+.footer {
+  text-align: right;
+  font-size: 12px;
+}
