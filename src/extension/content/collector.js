@@ -285,6 +285,7 @@ function collectMessages() {
 
 function getSessionIdFromPath(pathname) {
   const rules = [
+    { pattern: /\/a\/chat\/s\/([^/?#]+)/, source: "path" },
     { pattern: /\/chat\/s\/([^/?#]+)/, source: "path" },
     { pattern: /\/c\/([^/?#]+)/, source: "path" },
     { pattern: /\/chat\/([^/?#]+)/, source: "path" },
