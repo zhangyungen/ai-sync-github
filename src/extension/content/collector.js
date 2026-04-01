@@ -64,7 +64,13 @@ function cleanDocumentTitle(rawTitle) {
     "新对话",
     "untitled session"
   ]);
-  if (!title || generic.has(lower)) {
+  const genericPatterns = [
+    /通义千问官网/i,
+    /最新模型体验/i,
+    /^千问[-\s].*官网/i,
+    /^qwen[-\s].*official/i
+  ];
+  if (!title || generic.has(lower) || genericPatterns.some((pattern) => pattern.test(title))) {
     return "";
   }
   return title;
