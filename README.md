@@ -1,4 +1,4 @@
-# ChatGPT Sync GitHub Extension
+# AI2Git Extension
 
 浏览器插件（Manifest V3），支持将 ChatGPT 会话手动或自动同步到 GitHub，并生成可视化目录：
 
@@ -6,6 +6,12 @@
 - `sync-data/timeline/*`：时间线 Markdown
 - `sync-data/categorized/*`：按角色、业务主题/进展、目录分类
 - `sync-data/indexes/*`：索引与导航
+
+当前支持站点：
+- `https://chat.openai.com/*`
+- `https://chatgpt.com/*`
+- `https://chat.deepseek.com/*`（DeepSeek）
+- `https://www.qianwen.com/chat/*`（阿里千问）
 
 ## 功能
 

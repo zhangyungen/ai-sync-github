@@ -1,12 +1,12 @@
-import { DEFAULT_ROLE_TAG, ROLE_TAGS } from "../../constants/roles.js";
+import { DEFAULT_ROLE_TAG } from "../../constants/roles.js";
 
 function normalizeTags(values) {
   if (!Array.isArray(values)) {
     return [];
   }
-  return values
+  return Array.from(new Set(values
     .map((value) => `${value || ""}`.trim())
-    .filter(Boolean);
+    .filter(Boolean)));
 }
 
 function normalizeDirectory(value, fallback = "general") {
@@ -14,20 +14,42 @@ function normalizeDirectory(value, fallback = "general") {
   return text || fallback;
 }
 
-function normalizeClassification(input, defaultDirectory, fallbackRole = false) {
+function normalizeRoleOptions(values) {
+  const normalized = normalizeTags(values);
+  return normalized.length > 0 ? normalized : [DEFAULT_ROLE_TAG];
+}
+
+function normalizeClassification(input, options = {}) {
+  const roleOptions = normalizeRoleOptions(options.roleOptions);
+  const defaultDirectory = normalizeDirectory(options.defaultDirectory, "general");
+  const fallbackRole = !!options.fallbackRole;
   const roles = normalizeTags(input?.roles);
   const businessTags = normalizeTags(input?.businessTags);
+  const directories = normalizeTags(input?.directories);
+
+  if (directories.length === 0 && `${input?.directory || ""}`.trim()) {
+    directories.push(normalizeDirectory(input.directory, defaultDirectory));
+  }
+
+  const resolvedDirectories = directories.length > 0 ? directories : [defaultDirectory];
+  const resolvedRoles = roles.length > 0
+    ? roles
+    : (fallbackRole ? [roleOptions[0] || DEFAULT_ROLE_TAG] : []);
 
   return {
-    roles: roles.length > 0 ? roles : (fallbackRole ? [DEFAULT_ROLE_TAG] : []),
+    roles: resolvedRoles,
     businessTags,
-    directory: normalizeDirectory(input?.directory, defaultDirectory)
+    directories: resolvedDirectories,
+    directory: resolvedDirectories[0]
   };
 }
 
-function keepSupportedRoles(roles) {
-  const output = roles.filter((role) => ROLE_TAGS.includes(role));
-  return output.length > 0 ? output : [DEFAULT_ROLE_TAG];
+function hasAnyTag(classification) {
+  return (
+    classification.roles.length > 0
+    || classification.businessTags.length > 0
+    || classification.directories.length > 0
+  );
 }
 
 export class ManualFirstClassifier {
@@ -36,55 +58,62 @@ export class ManualFirstClassifier {
   }
 
   async resolve(input) {
-    const manualClassification = normalizeClassification(
-      input?.manualSelection,
-      input?.defaultDirectory,
-      true
-    );
+    const options = {
+      roleOptions: input?.roleOptions,
+      defaultDirectory: input?.defaultDirectory,
+      fallbackRole: true
+    };
+    const manualClassification = normalizeClassification(input?.manualSelection, options);
 
     if (input?.mode === "manual") {
       return {
-        classification: {
-          ...manualClassification,
-          roles: keepSupportedRoles(manualClassification.roles)
-        },
+        classification: manualClassification,
         source: "manual",
         requiresManual: false
       };
     }
 
+    if (this.autoClassifier && input?.autoEnabled) {
+      const prediction = await this.autoClassifier.classify(input?.session, {
+        roleOptions: input?.roleOptions,
+        businessTagOptions: input?.businessTagOptions,
+        directoryOptions: input?.directoryOptions,
+        defaultDirectory: input?.defaultDirectory
+      });
+      const confidence = Number(prediction?.confidence || 0);
+      const threshold = Number(input?.autoThreshold || 0.8);
+      const predicted = normalizeClassification(prediction, options);
+
+      if (confidence >= threshold || input?.mode === "auto") {
+        return {
+          classification: predicted,
+          source: confidence >= threshold ? "auto" : "auto_fallback",
+          requiresManual: false
+        };
+      }
+    }
+
     const stored = normalizeClassification(
       input?.storedSelection,
-      input?.defaultDirectory,
-      false
+      {
+        ...options,
+        fallbackRole: false
+      }
     );
-    if (stored.roles.length > 0 || stored.businessTags.length > 0) {
+    if (hasAnyTag(stored)) {
       return {
-        classification: {
-          ...stored,
-          roles: keepSupportedRoles(stored.roles)
-        },
+        classification: stored,
         source: "stored",
         requiresManual: false
       };
     }
 
-    if (this.autoClassifier && input?.autoEnabled) {
-      const prediction = await this.autoClassifier.classify(input?.session);
-      const confidence = Number(prediction?.confidence || 0);
-      const threshold = Number(input?.autoThreshold || 0.8);
-
-      if (confidence >= threshold) {
-        const predicted = normalizeClassification(prediction, input?.defaultDirectory, true);
-        return {
-          classification: {
-            ...predicted,
-            roles: keepSupportedRoles(predicted.roles)
-          },
-          source: "auto",
-          requiresManual: false
-        };
-      }
+    if (input?.mode === "auto") {
+      return {
+        classification: normalizeClassification(null, options),
+        source: "default",
+        requiresManual: false
+      };
     }
 
     return {

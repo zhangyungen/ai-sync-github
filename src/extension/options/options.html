@@ -3,15 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ChatGPT Sync Options</title>
+    <title>AI2Git 高级设置</title>
     <link rel="stylesheet" href="./options.css" />
   </head>
   <body>
     <main class="container">
       <header>
         <h1>高级设置</h1>
-        <p>告警、自动分类和输出路径配置</p>
+        <p>GitHub、代理、自动同步、分类和发布配置</p>
       </header>
+
+      <section class="card">
+        <h2>GitHub 配置</h2>
+        <label>Owner <input id="github-owner" type="text" /></label>
+        <label>Repo <input id="github-repo" type="text" /></label>
+        <label>Branch <input id="github-branch" type="text" placeholder="main" /></label>
+        <label>
+          Auth Mode
+          <select id="github-auth-mode">
+            <option value="pat">PAT</option>
+            <option value="oauth">OAuth</option>
+            <option value="app">App</option>
+          </select>
+        </label>
+        <label>Token <input id="github-token" type="password" /></label>
+      </section>
+
+      <section class="card">
+        <h2>代理设置</h2>
+        <label>代理服务器 <input id="proxy-server" type="text" placeholder="127.0.0.1" /></label>
+        <label>代理端口 <input id="proxy-port" type="number" min="1" max="65535" placeholder="7890" /></label>
+        <small>留空表示不启用代理。</small>
+      </section>
+
+      <section class="card">
+        <h2>自动同步</h2>
+        <label class="inline"><input id="auto-enabled" type="checkbox" /> 启用自动同步</label>
+        <label>周期（分钟）<input id="auto-interval" type="number" min="1" /></label>
+        <label>最小周期（分钟）<input id="auto-min" type="number" min="1" /></label>
+        <label>最大周期（分钟）<input id="auto-max" type="number" min="1" /></label>
+      </section>
 
       <section class="card">
         <h2>告警</h2>
@@ -23,6 +54,10 @@
         <label class="inline"><input id="auto-classify-enabled" type="checkbox" /> 启用自动分类（低置信度回退手动）</label>
         <label>自动分类阈值（0-1）<input id="auto-threshold" type="number" min="0" max="1" step="0.01" /></label>
         <label>默认目录 <input id="default-directory" type="text" /></label>
+        <small>手动同步标签选择模式固定为多选。</small>
+        <label>角色标签库（每行一个）<textarea id="role-tags" rows="5" placeholder="资深技术架构师"></textarea></label>
+        <label>业务主题标签库（每行一个）<textarea id="business-tag-options" rows="5" placeholder="需求设计"></textarea></label>
+        <label>目录标签库（每行一个）<textarea id="directory-options" rows="5" placeholder="architecture"></textarea></label>
       </section>
 
       <section class="card">
@@ -31,7 +66,11 @@
       </section>
 
       <section class="card actions">
+        <button id="validate-github">校验 GitHub 权限</button>
+        <button id="import-config">导入配置文件</button>
+        <button id="export-config">导出配置文件</button>
         <button id="save-options">保存</button>
+        <input id="config-file-input" type="file" accept="application/json,.json" hidden />
         <p id="status"></p>
       </section>
     </main>

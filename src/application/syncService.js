@@ -36,6 +36,33 @@ function summarize(results) {
   return summary;
 }
 
+function buildRunLogEntries(mode, results, summary) {
+  const now = new Date().toISOString();
+  const detailLogs = (results || []).map((result) => ({
+    at: now,
+    mode,
+    level: result.status === "failed" ? "error" : result.status === "skipped" ? "warn" : "info",
+    type: "session",
+    sessionId: result.sessionId || "",
+    status: result.status || "unknown",
+    reason: result.reason || "",
+    message: result.message || ""
+  }));
+
+  const summaryLog = {
+    at: now,
+    mode,
+    level: summary.failed > 0 ? "warn" : "info",
+    type: "summary",
+    sessionId: "",
+    status: "completed",
+    reason: "",
+    message: `同步完成：成功 ${summary.synced}，跳过 ${summary.skipped}，失败 ${summary.failed}`
+  };
+
+  return [...detailLogs, summaryLog];
+}
+
 export class SyncService {
   constructor(dependencies) {
     this.stateRepository = dependencies.stateRepository;
@@ -97,6 +124,7 @@ export class SyncService {
 
     const summary = summarize(results);
     await this.stateRepository.saveLastSyncResult(summary);
+    await this.stateRepository.appendSyncLogs(buildRunLogEntries(SYNC_MODE.MANUAL, results, summary));
     return summary;
   }
 
@@ -122,6 +150,7 @@ export class SyncService {
 
     const summary = summarize(results);
     await this.stateRepository.saveLastSyncResult(summary);
+    await this.stateRepository.appendSyncLogs(buildRunLogEntries(SYNC_MODE.AUTO, results, summary));
     this.logger.info("Auto sync run completed", summary);
     return summary;
   }

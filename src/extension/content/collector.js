@@ -6,8 +6,216 @@ function parseLanguageFromClassName(className) {
   return match ? match[1] : "";
 }
 
+const DEBUG_PREFIX = "[AI2Git Collector]";
+
+function debugLog(event, payload = {}) {
+  const detail = {
+    event,
+    at: new Date().toISOString(),
+    url: window.location.href,
+    ...payload
+  };
+  window.__AI2GIT_COLLECTOR_DEBUG__ = detail;
+  // eslint-disable-next-line no-console
+  console.info(DEBUG_PREFIX, detail);
+}
+
+function normalizeToken(value) {
+  return `${value || ""}`.trim().toLowerCase();
+}
+
+function normalizeText(text) {
+  return `${text || ""}`
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function inferRole(node) {
+  const directRole = normalizeToken(
+    node.getAttribute("data-message-author-role")
+    || node.getAttribute("data-role")
+    || node.getAttribute("data-author-role")
+    || node.getAttribute("data-sender-role")
+  );
+  if (directRole) {
+    if (directRole.includes("assistant") || directRole.includes("bot") || directRole.includes("ai")) {
+      return "assistant";
+    }
+    if (directRole.includes("user") || directRole.includes("human")) {
+      return "user";
+    }
+    return directRole;
+  }
+
+  const hintText = normalizeToken(
+    [
+      node.className,
+      node.id,
+      node.getAttribute("aria-label"),
+      node.getAttribute("data-testid")
+    ].join(" ")
+  );
+
+  if (
+    hintText.includes("assistant")
+    || hintText.includes("answer")
+    || hintText.includes("bot")
+    || hintText.includes("ai")
+    || hintText.includes("reply")
+    || hintText.includes("qianwen")
+    || hintText.includes("deepseek")
+  ) {
+    return "assistant";
+  }
+  if (
+    hintText.includes("user")
+    || hintText.includes("human")
+    || hintText.includes("question")
+    || hintText.includes("prompt")
+  ) {
+    return "user";
+  }
+  return "unknown";
+}
+
+function getSiteName() {
+  const host = window.location.hostname.toLowerCase();
+  if (host === "chatgpt.com" || host === "chat.openai.com") {
+    return "chatgpt";
+  }
+  if (host === "chat.deepseek.com") {
+    return "deepseek";
+  }
+  if (host === "www.qianwen.com") {
+    return "qianwen";
+  }
+  return "generic";
+}
+
+function getMessageSelectorsBySite(site) {
+  switch (site) {
+    case "chatgpt":
+      return ["[data-message-author-role]"];
+    case "deepseek":
+      return [
+        "[data-role='user']",
+        "[data-role='assistant']",
+        "[data-testid*='message']",
+        "[data-testid*='chat']",
+        "[class*='message'][class*='user']",
+        "[class*='message'][class*='assistant']",
+        "[class*='chat-message']",
+        "main [class*='message']",
+        "main [class*='markdown']",
+        "main article"
+      ];
+    case "qianwen":
+      return [
+        "[data-role='user']",
+        "[data-role='assistant']",
+        "[class*='question']",
+        "[class*='answer']",
+        "[class*='message'][class*='item']"
+      ];
+    default:
+      return [
+        "[data-message-author-role]",
+        "[data-role='user']",
+        "[data-role='assistant']",
+        "[class*='message'][class*='user']",
+        "[class*='message'][class*='assistant']"
+      ];
+  }
+}
+
+function collectFallbackNodesForDeepseek() {
+  const containers = Array.from(document.querySelectorAll("main div, main section, main article"));
+  const keywords = ["message", "assistant", "user", "chat", "markdown", "answer", "question"];
+  const matched = containers.filter((node) => {
+    const hint = normalizeToken(
+      [
+        node.className,
+        node.id,
+        node.getAttribute("data-testid"),
+        node.getAttribute("role")
+      ].join(" ")
+    );
+    if (keywords.some((keyword) => hint.includes(keyword))) {
+      return true;
+    }
+    const textLength = normalizeText(node.innerText || node.textContent || "").length;
+    return textLength > 10 && node.querySelectorAll("pre code, img[src], a[href]").length > 0;
+  });
+  return matched;
+}
+
+function collectCandidateMessageNodes() {
+  const site = getSiteName();
+  const selectors = getMessageSelectorsBySite(site);
+  debugLog("collect_candidate_nodes_start", { site, selectors });
+
+  const matched = selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)));
+  const unique = [];
+  const seen = new Set();
+
+  matched.forEach((node) => {
+    if (!(node instanceof Element)) {
+      return;
+    }
+    if (seen.has(node)) {
+      return;
+    }
+    seen.add(node);
+
+    const textLength = normalizeText(node.innerText || node.textContent || "").length;
+    if (textLength < 2 && node.querySelectorAll("pre code, img[src], a[href]").length === 0) {
+      return;
+    }
+    unique.push(node);
+  });
+
+  debugLog("collect_candidate_nodes_done", {
+    site,
+    matchedCount: matched.length,
+    uniqueCount: unique.length
+  });
+
+  if (site === "deepseek" && unique.length === 0) {
+    const fallbackNodes = collectFallbackNodesForDeepseek();
+    debugLog("collect_candidate_nodes_deepseek_fallback", {
+      fallbackCount: fallbackNodes.length
+    });
+    return fallbackNodes;
+  }
+
+  return unique;
+}
+
+function extractTextPart(messageNode) {
+  const clone = messageNode.cloneNode(true);
+  clone.querySelectorAll("pre, code, img, svg, script, style, video, audio, source").forEach((node) => {
+    node.remove();
+  });
+  const text = normalizeText(clone.innerText || clone.textContent || "");
+  if (!text) {
+    return null;
+  }
+  return {
+    type: "text",
+    text,
+    url: "",
+    language: "",
+    name: ""
+  };
+}
+
 function extractParts(messageNode) {
   const parts = [];
+  const textPart = extractTextPart(messageNode);
+  if (textPart) {
+    parts.push(textPart);
+  }
 
   messageNode.querySelectorAll("pre code").forEach((node) => {
     parts.push({
@@ -40,7 +248,7 @@ function extractParts(messageNode) {
   });
 
   if (parts.length === 0) {
-    const text = messageNode.textContent || "";
+    const text = normalizeText(messageNode.textContent || "");
     parts.push({
       type: "text",
       text,
@@ -54,14 +262,18 @@ function extractParts(messageNode) {
 }
 
 function collectMessages() {
-  const nodes = Array.from(document.querySelectorAll("[data-message-author-role]"));
+  const nodes = collectCandidateMessageNodes();
   if (nodes.length === 0) {
     return [];
   }
 
   return nodes.map((node, index) => {
-    const role = node.getAttribute("data-message-author-role") || "unknown";
-    const id = node.getAttribute("data-message-id") || `m-${index + 1}`;
+    const role = inferRole(node);
+    const id = node.getAttribute("data-message-id")
+      || node.getAttribute("data-message-id-v2")
+      || node.getAttribute("data-id")
+      || node.id
+      || `m-${index + 1}`;
     return {
       id,
       role,
@@ -71,28 +283,112 @@ function collectMessages() {
   });
 }
 
-function getSessionId() {
-  const match = window.location.pathname.match(/\/c\/([^/?#]+)/);
-  if (match) {
-    return match[1];
+function getSessionIdFromPath(pathname) {
+  const patterns = [
+    /\/c\/([^/?#]+)/,
+    /\/chat\/([^/?#]+)/,
+    /\/conversation\/([^/?#]+)/,
+    /\/s\/([^/?#]+)/
+  ];
+  for (const pattern of patterns) {
+    const match = pathname.match(pattern);
+    if (match?.[1]) {
+      return {
+        value: match[1],
+        source: "path"
+      };
+    }
   }
-  return `session-${Date.now()}`;
+  return null;
+}
+
+function getSessionId() {
+  const fromPath = getSessionIdFromPath(window.location.pathname);
+  if (fromPath?.value) {
+    return fromPath;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const fromQuery = params.get("sessionId") || params.get("conversationId") || params.get("chatId") || params.get("id");
+  if (fromQuery) {
+    return {
+      value: fromQuery,
+      source: "query"
+    };
+  }
+
+  const host = window.location.hostname.toLowerCase().replace(/[^a-z0-9.-]/g, "");
+  const path = window.location.pathname
+    .replace(/[^a-zA-Z0-9/_-]/g, "")
+    .replace(/[\/_]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = path ? path.slice(0, 80) : `${Date.now()}`;
+  return {
+    value: `${host}-${suffix}`,
+    source: "fallback"
+  };
 }
 
 function collectSnapshot() {
-  return {
-    sessionId: getSessionId(),
+  debugLog("collect_snapshot_start", {
+    title: document.title || "",
+    site: getSiteName()
+  });
+
+  const session = getSessionId();
+  const messages = collectMessages();
+  const roleStats = messages.reduce((acc, item) => {
+    const role = item.role || "unknown";
+    acc[role] = (acc[role] || 0) + 1;
+    return acc;
+  }, {});
+
+  const snapshot = {
+    sessionId: session.value,
     title: document.title || "Untitled Session",
     sourceUrl: window.location.href,
     capturedAt: new Date().toISOString(),
-    messages: collectMessages()
+    messages
   };
+
+  debugLog("collect_snapshot_done", {
+    site: getSiteName(),
+    sessionId: session.value,
+    sessionIdSource: session.source,
+    messageCount: messages.length,
+    roleStats
+  });
+
+  return snapshot;
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type !== "collect-session-snapshot") {
     return false;
   }
-  sendResponse(collectSnapshot());
+
+  debugLog("collect_request_received", {
+    messageType: message?.type
+  });
+
+  try {
+    sendResponse(collectSnapshot());
+  } catch (error) {
+    debugLog("collect_snapshot_error", {
+      error: error?.message || String(error)
+    });
+    sendResponse({
+      sessionId: "",
+      title: document.title || "Untitled Session",
+      sourceUrl: window.location.href,
+      capturedAt: new Date().toISOString(),
+      messages: []
+    });
+  }
   return true;
+});
+
+debugLog("collector_ready", {
+  site: getSiteName(),
+  pathname: window.location.pathname
 });

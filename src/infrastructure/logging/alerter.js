@@ -1,6 +1,6 @@
 export class WebhookAlerter {
   constructor(fetcher = fetch) {
-    this.fetcher = fetcher;
+    this.fetcher = (...args) => fetcher.apply(globalThis, args);
   }
 
   async send(url, payload) {

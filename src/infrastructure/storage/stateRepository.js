@@ -88,9 +88,8 @@ export class StateRepository {
 
   async upsertIndexRecord(record) {
     const records = await this.getIndexRecords();
-    const filtered = records.filter((item) => item.sessionId !== record.sessionId);
-    filtered.push(record);
-    await this.saveIndexRecords(filtered);
+    records.push(record);
+    await this.saveIndexRecords(records);
   }
 
   async saveLastSyncResult(result) {
@@ -100,5 +99,31 @@ export class StateRepository {
   async getLastSyncResult() {
     const stored = await this.storageGateway.get({ [STORAGE_KEYS.LAST_SYNC_RESULT]: null });
     return stored[STORAGE_KEYS.LAST_SYNC_RESULT];
+  }
+
+  async getSyncLogs() {
+    const stored = await this.storageGateway.get({ [STORAGE_KEYS.SYNC_LOGS]: [] });
+    return Array.isArray(stored[STORAGE_KEYS.SYNC_LOGS]) ? stored[STORAGE_KEYS.SYNC_LOGS] : [];
+  }
+
+  async saveSyncLogs(logs) {
+    await this.storageGateway.set({ [STORAGE_KEYS.SYNC_LOGS]: logs || [] });
+  }
+
+  async appendSyncLogs(entries, max = 300) {
+    const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+    if (list.length === 0) {
+      return this.getSyncLogs();
+    }
+
+    const logs = await this.getSyncLogs();
+    logs.push(...list);
+    const trimmed = logs.slice(-Math.max(10, Number(max) || 300));
+    await this.saveSyncLogs(trimmed);
+    return trimmed;
+  }
+
+  async clearSyncLogs() {
+    await this.saveSyncLogs([]);
   }
 }

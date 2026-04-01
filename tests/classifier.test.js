@@ -20,9 +20,15 @@ test("manual classifier should prioritize manual selection", async () => {
   assert.equal(result.classification.directory, "payment");
 });
 
-test("auto mode should require manual when no stored and no auto hit", async () => {
+test("auto mode should still produce classification when confidence is low", async () => {
   const classifier = new ManualFirstClassifier({
-    classify: async () => ({ confidence: 0.2, roles: [], businessTags: [] })
+    classify: async () => ({
+      confidence: 0.2,
+      roles: ["资深技术架构师"],
+      businessTags: ["技术方案"],
+      directories: ["general"],
+      directory: "general"
+    })
   });
   const result = await classifier.resolve({
     mode: "auto",
@@ -32,6 +38,9 @@ test("auto mode should require manual when no stored and no auto hit", async () 
     defaultDirectory: "general"
   });
 
-  assert.equal(result.requiresManual, true);
-  assert.equal(result.classification, null);
+  assert.equal(result.requiresManual, false);
+  assert.equal(result.source, "auto_fallback");
+  assert.deepEqual(result.classification.roles, ["资深技术架构师"]);
+  assert.deepEqual(result.classification.businessTags, ["技术方案"]);
+  assert.equal(result.classification.directory, "general");
 });

@@ -1,10 +1,28 @@
 import { joinPath, sanitizePathSegment } from "../../shared/path.js";
 import { toDateKey } from "../../shared/time.js";
 
+function buildCodeFence(text) {
+  const matches = `${text || ""}`.match(/`+/g) || [];
+  const longest = matches.reduce((max, item) => Math.max(max, item.length), 0);
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
+function normalizeCodeLanguage(language) {
+  const normalized = `${language || ""}`.trim().toLowerCase();
+  if (!normalized) {
+    return "text";
+  }
+  return /^[\w+-]+$/.test(normalized) ? normalized : "text";
+}
+
 function renderPart(part) {
   switch (part.type) {
-    case "code":
-      return `\n\`\`\`${part.language || ""}\n${part.text || ""}\n\`\`\`\n`;
+    case "code": {
+      const code = part.text || "";
+      const fence = buildCodeFence(code);
+      const language = normalizeCodeLanguage(part.language);
+      return `\n${fence}${language}\n${code}\n${fence}\n`;
+    }
     case "markdown":
       return `\n${part.text || ""}\n`;
     case "link":
@@ -69,15 +87,21 @@ function buildCategorizedPaths(rootPath, classification, sessionId) {
     )
   );
 
-  const directoryPath = joinPath(
-    rootPath,
-    "categorized",
-    "directory",
-    sanitizePathSegment(classification.directory),
-    `${safeSessionId}.md`
-  );
+  const directoryValues = Array.isArray(classification.directories) && classification.directories.length > 0
+    ? classification.directories
+    : [classification.directory];
+  const directoryPaths = Array.from(new Set(directoryValues
+    .map((value) => `${value || ""}`.trim())
+    .filter(Boolean)))
+    .map((value) => joinPath(
+      rootPath,
+      "categorized",
+      "directory",
+      sanitizePathSegment(value),
+      `${safeSessionId}.md`
+    ));
 
-  return [...rolePaths, ...businessPaths, directoryPath];
+  return [...rolePaths, ...businessPaths, ...directoryPaths];
 }
 
 export function renderSyncArtifacts(input) {

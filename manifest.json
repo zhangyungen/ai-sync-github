@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Sync GitHub",
+  "name": "AI2Git",
   "version": "0.1.0",
   "description": "Manual and scheduled ChatGPT chat sync to GitHub with raw + categorized outputs.",
   "permissions": [
@@ -8,12 +8,15 @@
     "alarms",
     "tabs",
     "activeTab",
-    "scripting"
+    "scripting",
+    "proxy"
   ],
   "host_permissions": [
     "https://api.github.com/*",
     "https://chat.openai.com/*",
-    "https://chatgpt.com/*"
+    "https://chatgpt.com/*",
+    "https://chat.deepseek.com/*",
+    "https://www.qianwen.com/*"
   ],
   "background": {
     "service_worker": "src/extension/background/background.js",
@@ -23,14 +26,16 @@
     {
       "matches": [
         "https://chat.openai.com/*",
-        "https://chatgpt.com/*"
+        "https://chatgpt.com/*",
+        "https://chat.deepseek.com/*",
+        "https://www.qianwen.com/*"
       ],
       "js": ["src/extension/content/collector.js"],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "ChatGPT Sync",
+    "default_title": "AI2Git",
     "default_popup": "src/extension/popup/popup.html"
   },
   "options_page": "src/extension/options/options.html"

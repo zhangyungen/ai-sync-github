@@ -43,9 +43,9 @@ function applyDedupe(messages, sessionId, dedupeMap, dedupeWindow) {
 }
 
 function mergeRecords(records, record) {
-  const filtered = records.filter((item) => item.sessionId !== record.sessionId);
-  filtered.push(record);
-  return filtered;
+  const list = Array.isArray(records) ? [...records] : [];
+  list.push(record);
+  return list;
 }
 
 export class SyncPipeline {
@@ -74,7 +74,10 @@ export class SyncPipeline {
         session: normalized,
         autoEnabled: config.classification.autoEnabled,
         autoThreshold: config.classification.autoThreshold,
-        defaultDirectory: config.classification.defaultDirectory
+        defaultDirectory: config.classification.defaultDirectory,
+        roleOptions: config.classification.roleTags,
+        businessTagOptions: config.classification.businessTagOptions,
+        directoryOptions: config.classification.directoryOptions
       });
 
       if (classificationResult.requiresManual) {

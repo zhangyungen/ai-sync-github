@@ -1,9 +1,12 @@
+import { ROLE_TAGS } from "./roles.js";
+
 export const STORAGE_KEYS = Object.freeze({
   CONFIG: "config",
   SESSIONS: "sessions",
   DEDUPE_WINDOW: "dedupeWindow",
   INDEX_RECORDS: "indexRecords",
-  LAST_SYNC_RESULT: "lastSyncResult"
+  LAST_SYNC_RESULT: "lastSyncResult",
+  SYNC_LOGS: "syncLogs"
 });
 
 export const SYNC_MODE = Object.freeze({
@@ -28,17 +31,36 @@ export const DEFAULT_SYNC_CONFIG = Object.freeze({
   },
   autoSync: {
     enabled: false,
-    intervalMinutes: 15,
-    minIntervalMinutes: 5,
-    maxIntervalMinutes: 120
+    intervalMinutes: 2,
+    minIntervalMinutes: 1,
+    maxIntervalMinutes: 5
   },
   classification: {
     autoEnabled: false,
     autoThreshold: 0.8,
-    defaultDirectory: "general"
+    defaultDirectory: "general",
+    roleTags: [...ROLE_TAGS],
+    businessTagOptions: [
+      "市场调研",
+      "业务分析",
+      "需求设计",
+      "技术方案"
+    ],
+    directoryOptions: [
+      "general",
+      "market",
+      "business",
+      "product",
+      "architecture"
+    ],
+    manualSelectionMode: "multiple"
   },
   alerts: {
     webhookUrl: ""
+  },
+  network: {
+    proxyServer: "",
+    proxyPort: ""
   },
   publish: {
     rootPath: "sync-data"

@@ -17,7 +17,7 @@
 - **THEN** 可以同时看到 raw 副本与 categorized 副本，并可定位到同一来源会话
 
 ### Requirement: Support Role-Based and Dynamic Business Progress Tags
-系统 SHALL 支持按角色与业务主题/进展情况对输出内容分类，其中角色标签至少支持：资深市场需求分析师、资深业务架构师、资深产品设计师（需求设计）、资深技术架构师；业务主题/进展标签不采用固定枚举。
+系统 SHALL 支持按角色与业务主题对输出内容分类，其中角色标签至少支持：资深市场需求分析师、资深业务架构师、资深产品设计师（需求设计）、资深技术架构师；业务主题/进展标签不采用固定枚举。
 
 #### Scenario: User assigns multiple tags to a session
 - **GIVEN** 用户正在对会话进行分类

@@ -62,12 +62,31 @@ label {
   gap: 8px;
 }
 
-input {
+input,
+textarea {
   border: 1px solid #c7d2e2;
   border-radius: 9px;
   padding: 8px 10px;
   font: inherit;
   background: #fbfdff;
+}
+
+textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+select {
+  border: 1px solid #c7d2e2;
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  background: #fbfdff;
+}
+
+small {
+  color: #5c6d85;
 }
 
 .actions {
