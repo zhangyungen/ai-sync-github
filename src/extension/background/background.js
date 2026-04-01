@@ -152,15 +152,47 @@ async function collectSessionFromTab(tabId) {
     return null;
   }
 
-  try {
-    const snapshot = await chrome.tabs.sendMessage(tabId, {
+  async function requestSnapshot() {
+    return chrome.tabs.sendMessage(tabId, {
       type: "collect-session-snapshot"
     });
+  }
+
+  try {
+    const snapshot = await requestSnapshot();
     if (!snapshot || !snapshot.sessionId) {
       return null;
     }
     return syncService.collectSession(snapshot);
   } catch (error) {
+    const message = `${error?.message || ""}`;
+    const canRetryByInject = message.includes("Receiving end does not exist")
+      || message.includes("Could not establish connection");
+
+    if (canRetryByInject) {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        const urlText = `${tab?.url || ""}`;
+        const isSupportedChatTab = /^https:\/\/(chat\.openai\.com|chatgpt\.com|chat\.deepseek\.com|www\.qianwen\.com)\//.test(urlText);
+        if (isSupportedChatTab) {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ["src/extension/content/collector.js"]
+          });
+          const retried = await requestSnapshot();
+          if (retried && retried.sessionId) {
+            logger.info("Collected session after collector reinjection", { tabId, url: urlText });
+            return syncService.collectSession(retried);
+          }
+        }
+      } catch (retryError) {
+        logger.warn("Collector reinjection failed", {
+          tabId,
+          message: retryError?.message || String(retryError)
+        });
+      }
+    }
+
     logger.warn("Failed to collect session from tab", { tabId, message: error.message });
     return null;
   }

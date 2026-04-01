@@ -284,37 +284,50 @@ function collectMessages() {
 }
 
 function getSessionIdFromPath(pathname) {
-  const patterns = [
-    /\/c\/([^/?#]+)/,
-    /\/chat\/([^/?#]+)/,
-    /\/conversation\/([^/?#]+)/,
-    /\/s\/([^/?#]+)/
+  const rules = [
+    { pattern: /\/chat\/s\/([^/?#]+)/, source: "path" },
+    { pattern: /\/c\/([^/?#]+)/, source: "path" },
+    { pattern: /\/chat\/([^/?#]+)/, source: "path" },
+    { pattern: /\/conversation\/([^/?#]+)/, source: "path" },
+    { pattern: /\/s\/([^/?#]+)/, source: "path" }
   ];
-  for (const pattern of patterns) {
-    const match = pathname.match(pattern);
-    if (match?.[1]) {
-      return {
-        value: match[1],
-        source: "path"
-      };
+  const reserved = new Set(["s", "c", "chat", "conversation"]);
+  for (const rule of rules) {
+    const match = pathname.match(rule.pattern);
+    const value = `${match?.[1] || ""}`.trim();
+    if (!value) {
+      continue;
     }
+    if (reserved.has(value.toLowerCase())) {
+      continue;
+    }
+    return {
+      value,
+      source: rule.source
+    };
   }
   return null;
 }
 
 function getSessionId() {
-  const fromPath = getSessionIdFromPath(window.location.pathname);
-  if (fromPath?.value) {
-    return fromPath;
-  }
-
   const params = new URLSearchParams(window.location.search);
-  const fromQuery = params.get("sessionId") || params.get("conversationId") || params.get("chatId") || params.get("id");
+  const fromQuery = params.get("sessionId")
+    || params.get("conversationId")
+    || params.get("conversation_id")
+    || params.get("session_id")
+    || params.get("chatId")
+    || params.get("chat_id")
+    || params.get("id");
   if (fromQuery) {
     return {
       value: fromQuery,
       source: "query"
     };
+  }
+
+  const fromPath = getSessionIdFromPath(window.location.pathname);
+  if (fromPath?.value) {
+    return fromPath;
   }
 
   const host = window.location.hostname.toLowerCase().replace(/[^a-z0-9.-]/g, "");
