@@ -1,4 +1,5 @@
 import { toBase64 } from "../../shared/base64.js";
+import { fromBase64 } from "../../shared/base64.js";
 
 function encodePath(path) {
   return path
@@ -191,6 +192,34 @@ export class GitHubClient {
 
     const payload = await response.json();
     return payload.sha || "";
+  }
+
+  async getFileContent(input) {
+    const path = encodePath(input.path);
+    const url = `${this.apiBase}/repos/${input.owner}/${input.repo}/contents/${path}?ref=${encodeURIComponent(input.branch)}`;
+    const response = await this.fetcher(url, {
+      method: "GET",
+      headers: {
+        Authorization: input.authHeader,
+        Accept: "application/vnd.github+json"
+      }
+    });
+
+    if (response.status === 404) {
+      return "";
+    }
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`GitHub getFileContent failed: ${response.status} ${body}`);
+    }
+
+    const payload = await response.json();
+    const encoded = `${payload?.content || ""}`;
+    if (!encoded.trim()) {
+      return "";
+    }
+    return fromBase64(encoded);
   }
 
   async upsertFile(input) {

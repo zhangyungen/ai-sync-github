@@ -82,6 +82,33 @@ function mergeRecords(records, record) {
   return list;
 }
 
+function buildRecordIdentity(record) {
+  const paths = Array.isArray(record?.paths) ? record.paths.join("|") : "";
+  return [
+    `${record?.sessionId || ""}`.trim(),
+    `${record?.syncedAt || ""}`.trim(),
+    `${record?.lastMessageId || ""}`.trim(),
+    paths
+  ].join("::");
+}
+
+function mergeRecordLists(...lists) {
+  const merged = [];
+  const seen = new Set();
+  lists.flat().forEach((record) => {
+    if (!record || typeof record !== "object") {
+      return;
+    }
+    const key = buildRecordIdentity(record);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    merged.push(record);
+  });
+  return merged;
+}
+
 export class SyncPipeline {
   constructor(dependencies) {
     this.stateRepository = dependencies.stateRepository;
@@ -172,7 +199,10 @@ export class SyncPipeline {
       }
 
       const existingRecords = await this.stateRepository.getIndexRecords();
-      const mergedRecords = mergeRecords(existingRecords, artifacts.record);
+      const remoteRecords = typeof this.publisher.getExistingIndexRecords === "function"
+        ? await this.publisher.getExistingIndexRecords(config.github, config.publish.rootPath)
+        : [];
+      const mergedRecords = [...mergeRecordLists(remoteRecords, existingRecords), artifacts.record];
       const indexFiles = buildIndexArtifacts(mergedRecords, config.publish.rootPath);
       const publishFiles = [...artifacts.files, ...indexFiles];
 

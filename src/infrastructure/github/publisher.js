@@ -1,6 +1,7 @@
 import { ERROR_CODE, SyncError } from "../../constants/errors.js";
 import { buildAuthHeader } from "./authStrategies.js";
 import { normalizeBranchName, normalizeOwnerRepo } from "./configNormalizer.js";
+import { joinPath } from "../../shared/path.js";
 
 function formatPublishErrorMessage(errorMessage, owner, repo, branch) {
   const message = `${errorMessage || ""}`;
@@ -87,6 +88,35 @@ export class GitHubPublisher {
     }
 
     throw lastError;
+  }
+
+  async getExistingIndexRecords(config, rootPath = "sync-data") {
+    const { owner, repo } = normalizeOwnerRepo(config);
+    const branch = normalizeBranchName(config?.branch);
+    const authHeader = buildAuthHeader({
+      ...config,
+      owner,
+      repo
+    });
+
+    if (!owner || !repo || !this.gitHubClient || typeof this.gitHubClient.getFileContent !== "function") {
+      return [];
+    }
+
+    try {
+      const path = joinPath(rootPath, "indexes", "index.json");
+      const content = await this.gitHubClient.getFileContent({
+        owner,
+        repo,
+        branch,
+        path,
+        authHeader
+      });
+      const parsed = JSON.parse(content || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
 
   async publishBundle(config, files, commitLabel) {

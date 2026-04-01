@@ -12,11 +12,16 @@ import { createInMemoryStorageGateway } from "../src/infrastructure/storage/stor
 class FakePublisher {
   constructor() {
     this.calls = [];
+    this.remoteIndexRecords = [];
   }
 
   async publishBundle(config, files, commitLabel) {
     this.calls.push({ config, files, commitLabel });
     return { publishedCount: files.length };
+  }
+
+  async getExistingIndexRecords() {
+    return this.remoteIndexRecords;
   }
 }
 
@@ -335,4 +340,84 @@ test("auto sync should treat updated content on same message id as incremental",
   const second = await service.runAutoSync();
   assert.equal(second.synced, 1);
   assert.equal(publisher.calls.length, 2);
+});
+
+test("sync should merge remote index records to avoid overwriting history", async () => {
+  const storage = createInMemoryStorageGateway();
+  const stateRepository = new StateRepository(storage);
+  const logger = new Logger("Test");
+  const publisher = new FakePublisher();
+  publisher.remoteIndexRecords = [
+    {
+      sessionId: "remote-chatgpt-s1",
+      title: "Remote Existing Session",
+      syncedAt: "2026-03-29T00:00:00.000Z",
+      dateKey: "2026-03-29",
+      classification: {
+        roles: ["资深技术架构师"],
+        businessTags: ["历史记录"],
+        directories: ["general"],
+        directory: "general"
+      },
+      paths: ["sync-data/timeline/2026-03-29/remote-chatgpt-s1.md"],
+      lastMessageId: "r1"
+    }
+  ];
+
+  const pipeline = new SyncPipeline({
+    stateRepository,
+    classifier: new ManualFirstClassifier(null),
+    publisher,
+    dedupeWindow: new DedupeWindow(),
+    logger,
+    alerter: new WebhookAlerter(async () => ({ ok: true }))
+  });
+  const service = new SyncService({
+    stateRepository,
+    pipeline,
+    logger
+  });
+
+  await service.updateConfig({
+    github: {
+      owner: "owner",
+      repo: "repo",
+      branch: "main",
+      authMode: "pat",
+      token: "token"
+    }
+  });
+
+  await service.collectSession({
+    sessionId: "deepseek-s-new",
+    title: "DeepSeek New Session",
+    sourceUrl: "https://chat.deepseek.com/a/chat/s/deepseek-s-new",
+    capturedAt: "2026-03-30T00:00:00.000Z",
+    messages: [
+      {
+        id: "m1",
+        role: "assistant",
+        createdAt: "2026-03-30T00:00:00.000Z",
+        parts: [{ type: "text", text: "hello" }]
+      }
+    ]
+  });
+
+  const summary = await service.runManualSync({
+    sessionIds: ["deepseek-s-new"],
+    manualSelection: {
+      roles: ["资深技术架构师"],
+      businessTags: ["deepseek"],
+      directory: "general"
+    }
+  });
+  assert.equal(summary.synced, 1);
+
+  const publishFiles = publisher.calls[0].files;
+  const indexJson = publishFiles.find((file) => file.path.endsWith("/indexes/index.json"));
+  assert.ok(indexJson);
+  const records = JSON.parse(indexJson.content);
+  assert.equal(records.length, 2);
+  assert.equal(records.some((item) => item.sessionId === "remote-chatgpt-s1"), true);
+  assert.equal(records.some((item) => item.sessionId === "deepseek-s-new"), true);
 });

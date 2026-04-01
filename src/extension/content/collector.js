@@ -31,6 +31,78 @@ function normalizeText(text) {
     .trim();
 }
 
+function firstNonEmptyLine(text) {
+  return `${text || ""}`
+    .split("\n")
+    .map((line) => normalizeText(line))
+    .find(Boolean) || "";
+}
+
+function clipText(text, max = 60) {
+  const normalized = normalizeText(text);
+  if (!normalized) {
+    return "";
+  }
+  return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+}
+
+function cleanDocumentTitle(rawTitle) {
+  let title = normalizeText(rawTitle || "");
+  if (!title) {
+    return "";
+  }
+  title = title
+    .replace(/\s*[-|]\s*(ChatGPT|DeepSeek|通义千问|Qwen)\s*$/i, "")
+    .replace(/\s*(ChatGPT|DeepSeek|通义千问|Qwen)\s*$/i, "")
+    .trim();
+  const lower = title.toLowerCase();
+  const generic = new Set([
+    "chatgpt",
+    "deepseek",
+    "qwen",
+    "通义千问",
+    "新对话",
+    "untitled session"
+  ]);
+  if (!title || generic.has(lower)) {
+    return "";
+  }
+  return title;
+}
+
+function getSiteTitleSelectors(site) {
+  if (site === "qianwen") {
+    return [
+      "[data-testid*='conversation-title']",
+      "[class*='conversation'][class*='title']",
+      "[class*='session'][class*='title']",
+      "[class*='chat'][class*='title']",
+      "main h1"
+    ];
+  }
+  if (site === "deepseek") {
+    return [
+      "[data-testid*='conversation-title']",
+      "[class*='conversation'][class*='title']",
+      "[class*='chat'][class*='title']",
+      "main h1"
+    ];
+  }
+  return ["main h1"];
+}
+
+function getTitleFromPage(site) {
+  const selectors = getSiteTitleSelectors(site);
+  for (const selector of selectors) {
+    const node = document.querySelector(selector);
+    const text = cleanDocumentTitle(node?.textContent || "");
+    if (text) {
+      return text;
+    }
+  }
+  return "";
+}
+
 function inferRole(node) {
   const directRole = normalizeToken(
     node.getAttribute("data-message-author-role")
@@ -450,6 +522,53 @@ function collectMessages() {
   });
 }
 
+function extractTextFromPart(part) {
+  if (!part || typeof part !== "object") {
+    return "";
+  }
+  const raw = normalizeText(part.text || "");
+  if (!raw) {
+    return "";
+  }
+  const first = firstNonEmptyLine(raw)
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^[-*]\s+/, "")
+    .replace(/^>\s+/, "");
+  return normalizeText(first || raw);
+}
+
+function getTitleFromMessages(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  const priority = list.find((item) => item.role === "user") || list[0];
+  const parts = Array.isArray(priority?.parts) ? priority.parts : [];
+  for (const part of parts) {
+    const text = extractTextFromPart(part);
+    if (text) {
+      return clipText(text, 70);
+    }
+  }
+  return "";
+}
+
+function resolveSessionTitle(site, messages, fallbackTitle, sessionId) {
+  const fromPage = getTitleFromPage(site);
+  if (fromPage) {
+    return fromPage;
+  }
+
+  const fromMessages = getTitleFromMessages(messages);
+  if (fromMessages) {
+    return fromMessages;
+  }
+
+  const fromDocument = cleanDocumentTitle(fallbackTitle);
+  if (fromDocument) {
+    return fromDocument;
+  }
+
+  return `Session ${`${sessionId || ""}`.slice(0, 8) || "Untitled"}`;
+}
+
 function getSessionIdFromPath(pathname) {
   const rules = [
     { pattern: /\/a\/chat\/s\/([^/?#]+)/, source: "path" },
@@ -511,13 +630,15 @@ function getSessionId() {
 }
 
 function collectSnapshot() {
+  const site = getSiteName();
   debugLog("collect_snapshot_start", {
     title: document.title || "",
-    site: getSiteName()
+    site
   });
 
   const session = getSessionId();
   const messages = collectMessages();
+  const resolvedTitle = resolveSessionTitle(site, messages, document.title || "", session.value);
   const roleStats = messages.reduce((acc, item) => {
     const role = item.role || "unknown";
     acc[role] = (acc[role] || 0) + 1;
@@ -526,16 +647,17 @@ function collectSnapshot() {
 
   const snapshot = {
     sessionId: session.value,
-    title: document.title || "Untitled Session",
+    title: resolvedTitle,
     sourceUrl: window.location.href,
     capturedAt: new Date().toISOString(),
     messages
   };
 
   debugLog("collect_snapshot_done", {
-    site: getSiteName(),
+    site,
     sessionId: session.value,
     sessionIdSource: session.source,
+    title: resolvedTitle,
     messageCount: messages.length,
     roleStats
   });
