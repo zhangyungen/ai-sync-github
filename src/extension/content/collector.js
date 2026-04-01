@@ -27,7 +27,7 @@ function normalizeToken(value) {
 function normalizeText(text) {
   return `${text || ""}`
     .replace(/\r\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{4,}/g, "\n\n\n")
     .trim();
 }
 
@@ -101,12 +101,17 @@ function getMessageSelectorsBySite(site) {
       return [
         "[data-role='user']",
         "[data-role='assistant']",
+        "[data-message-id]",
+        "[data-index]",
         "[data-testid*='message']",
         "[data-testid*='chat']",
         "[class*='message'][class*='user']",
         "[class*='message'][class*='assistant']",
+        "[class*='bubble']",
+        "[class*='msg']",
         "[class*='chat-message']",
         "main [class*='message']",
+        "main [class*='content']",
         "main [class*='markdown']",
         "main article"
       ];
@@ -150,6 +155,44 @@ function collectFallbackNodesForDeepseek() {
   return matched;
 }
 
+function collectStructuredTextBlocksForDeepseek() {
+  const root = document.querySelector("main") || document.body;
+  if (!root) {
+    return [];
+  }
+
+  const candidates = Array.from(root.querySelectorAll("div, article, section")).filter((node) => {
+    const text = normalizeText(node.innerText || node.textContent || "");
+    if (text.length < 12 || text.length > 15000) {
+      return false;
+    }
+    const hasStructuredContent = node.querySelector("p, li, pre, code, blockquote, table, a[href], img[src]");
+    if (!hasStructuredContent) {
+      return false;
+    }
+    const hint = normalizeToken(
+      [
+        node.className,
+        node.id,
+        node.getAttribute("data-testid"),
+        node.getAttribute("role")
+      ].join(" ")
+    );
+    return (
+      hint.includes("message")
+      || hint.includes("assistant")
+      || hint.includes("user")
+      || hint.includes("chat")
+      || hint.includes("content")
+      || hint.includes("markdown")
+      || text.length > 120
+    );
+  });
+
+  // Keep top-level blocks only to reduce nested duplicates.
+  return candidates.filter((node) => !candidates.some((other) => other !== node && other.contains(node)));
+}
+
 function collectCandidateMessageNodes() {
   const site = getSiteName();
   const selectors = getMessageSelectorsBySite(site);
@@ -186,7 +229,15 @@ function collectCandidateMessageNodes() {
     debugLog("collect_candidate_nodes_deepseek_fallback", {
       fallbackCount: fallbackNodes.length
     });
-    return fallbackNodes;
+    if (fallbackNodes.length > 0) {
+      return fallbackNodes;
+    }
+
+    const structuredBlocks = collectStructuredTextBlocksForDeepseek();
+    debugLog("collect_candidate_nodes_deepseek_structured_blocks", {
+      structuredBlockCount: structuredBlocks.length
+    });
+    return structuredBlocks;
   }
 
   return unique;
@@ -210,7 +261,122 @@ function extractTextPart(messageNode) {
   };
 }
 
-function extractParts(messageNode) {
+function escapeInlineMarkdown(text) {
+  return `${text || ""}`.replace(/([\\`*_{}\[\]()#+\-.!|>])/g, "\\$1");
+}
+
+function renderElementToMarkdown(node) {
+  if (!node) {
+    return "";
+  }
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    return `${node.textContent || ""}`;
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return "";
+  }
+
+  const element = node;
+  const tag = `${element.tagName || ""}`.toLowerCase();
+  const children = Array.from(element.childNodes).map((child) => renderElementToMarkdown(child)).join("");
+  const text = normalizeText(children);
+
+  if (tag === "br") {
+    return "\n";
+  }
+
+  if (/^h[1-6]$/.test(tag)) {
+    const level = Number(tag.slice(1)) || 1;
+    return `\n${"#".repeat(level)} ${text}\n\n`;
+  }
+
+  if (tag === "p") {
+    return `\n${text}\n\n`;
+  }
+
+  if (tag === "blockquote") {
+    const lines = text.split("\n").map((line) => `> ${line}`).join("\n");
+    return `\n${lines}\n\n`;
+  }
+
+  if (tag === "li") {
+    return `- ${text}\n`;
+  }
+
+  if (tag === "ul" || tag === "ol") {
+    return `\n${children}\n`;
+  }
+
+  if (tag === "pre") {
+    const codeNode = element.querySelector("code");
+    const codeText = codeNode?.textContent || element.textContent || "";
+    const language = parseLanguageFromClassName(codeNode?.className || element.className) || "text";
+    return `\n\`\`\`${language}\n${codeText}\n\`\`\`\n\n`;
+  }
+
+  if (tag === "code") {
+    const inline = normalizeText(element.textContent || "");
+    if (!inline) {
+      return "";
+    }
+    return `\`${escapeInlineMarkdown(inline)}\``;
+  }
+
+  if (tag === "a") {
+    const href = element.getAttribute("href") || "";
+    const label = text || href || "link";
+    return `[${label}](${href || "#"})`;
+  }
+
+  if (tag === "img") {
+    const alt = element.getAttribute("alt") || "image";
+    const src = element.getAttribute("src") || "";
+    return `![${alt}](${src})`;
+  }
+
+  if (tag === "strong" || tag === "b") {
+    return `**${text}**`;
+  }
+
+  if (tag === "em" || tag === "i") {
+    return `*${text}*`;
+  }
+
+  if (tag === "hr") {
+    return "\n---\n\n";
+  }
+
+  if (["div", "section", "article", "main"].includes(tag)) {
+    return `${children}\n`;
+  }
+
+  return children;
+}
+
+function extractMarkdownPart(messageNode) {
+  const markdown = normalizeText(renderElementToMarkdown(messageNode));
+  if (!markdown) {
+    return null;
+  }
+  return {
+    type: "markdown",
+    text: markdown,
+    url: "",
+    language: "",
+    name: ""
+  };
+}
+
+function extractParts(messageNode, site = "generic") {
+  if (site === "deepseek" || site === "qianwen") {
+    const markdownPart = extractMarkdownPart(messageNode);
+    if (markdownPart) {
+      return [markdownPart];
+    }
+  }
+
   const parts = [];
   const textPart = extractTextPart(messageNode);
   if (textPart) {
@@ -262,6 +428,7 @@ function extractParts(messageNode) {
 }
 
 function collectMessages() {
+  const site = getSiteName();
   const nodes = collectCandidateMessageNodes();
   if (nodes.length === 0) {
     return [];
@@ -278,7 +445,7 @@ function collectMessages() {
       id,
       role,
       createdAt: new Date().toISOString(),
-      parts: extractParts(node)
+      parts: extractParts(node, site)
     };
   });
 }

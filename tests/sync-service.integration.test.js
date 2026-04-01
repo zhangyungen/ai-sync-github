@@ -263,3 +263,76 @@ test("index records should append when message id is stable but content changes"
   assert.equal(records[0].sessionId, "qianwen-s1");
   assert.equal(records[1].sessionId, "qianwen-s1");
 });
+
+test("auto sync should treat updated content on same message id as incremental", async () => {
+  const storage = createInMemoryStorageGateway();
+  const stateRepository = new StateRepository(storage);
+  const logger = new Logger("Test");
+  const publisher = new FakePublisher();
+  const pipeline = new SyncPipeline({
+    stateRepository,
+    classifier: new ManualFirstClassifier(null),
+    publisher,
+    dedupeWindow: new DedupeWindow(),
+    logger,
+    alerter: new WebhookAlerter(async () => ({ ok: true }))
+  });
+  const service = new SyncService({
+    stateRepository,
+    pipeline,
+    logger
+  });
+
+  await service.updateConfig({
+    github: {
+      owner: "owner",
+      repo: "repo",
+      branch: "main",
+      authMode: "pat",
+      token: "token"
+    },
+    autoSync: {
+      enabled: true,
+      intervalMinutes: 2,
+      minIntervalMinutes: 1,
+      maxIntervalMinutes: 5
+    }
+  });
+
+  await service.collectSession({
+    sessionId: "deepseek-s1",
+    title: "DeepSeek Session",
+    sourceUrl: "https://chat.deepseek.com/a/chat/s/deepseek-s1",
+    capturedAt: "2026-03-30T00:00:00.000Z",
+    messages: [
+      {
+        id: "m-1",
+        role: "assistant",
+        createdAt: "2026-03-30T00:00:00.000Z",
+        parts: [{ type: "text", text: "初始内容" }]
+      }
+    ]
+  });
+
+  const first = await service.runAutoSync();
+  assert.equal(first.synced, 1);
+
+  await service.collectSession({
+    sessionId: "deepseek-s1",
+    title: "DeepSeek Session",
+    sourceUrl: "https://chat.deepseek.com/a/chat/s/deepseek-s1",
+    capturedAt: "2026-03-30T00:02:00.000Z",
+    messages: [
+      {
+        id: "m-1",
+        role: "assistant",
+        createdAt: "2026-03-30T00:02:00.000Z",
+        parts: [{ type: "text", text: "更新后的内容" }]
+      }
+    ]
+  });
+
+  const second = await service.runAutoSync();
+  assert.equal(second.synced, 1);
+  assert.equal(publisher.calls.length, 2);
+});

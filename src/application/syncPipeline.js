@@ -17,6 +17,40 @@ function findMessagesAfterCursor(messages, lastSyncedMessageId) {
   return messages.slice(index + 1);
 }
 
+function buildMessageSignature(message) {
+  return stableHash(
+    `${message?.id || ""}|${message?.role || ""}|${JSON.stringify(message?.parts || [])}`
+  );
+}
+
+function findAutoIncrementalMessages(messages, lastSyncedMessageId, lastSyncedMessageSignature) {
+  const incremental = findMessagesAfterCursor(messages, lastSyncedMessageId);
+  if (incremental.length > 0) {
+    return incremental;
+  }
+
+  if (!lastSyncedMessageId || !Array.isArray(messages) || messages.length === 0) {
+    return incremental;
+  }
+
+  const lastIndex = messages.findIndex((message) => message.id === lastSyncedMessageId);
+  if (lastIndex === -1) {
+    return incremental;
+  }
+
+  const currentMessage = messages[lastIndex];
+  if (!lastSyncedMessageSignature) {
+    return incremental;
+  }
+
+  const currentSignature = buildMessageSignature(currentMessage);
+  if (currentSignature !== lastSyncedMessageSignature) {
+    return [currentMessage];
+  }
+
+  return incremental;
+}
+
 function buildFingerprint(sessionId, message) {
   return stableHash(
     `${sessionId}|${message.id}|${message.role}|${JSON.stringify(message.parts || [])}`
@@ -89,7 +123,11 @@ export class SyncPipeline {
       }
 
       const candidateMessages = mode === "auto"
-        ? findMessagesAfterCursor(normalized.messages, existing.lastSyncedMessageId)
+        ? findAutoIncrementalMessages(
+          normalized.messages,
+          existing.lastSyncedMessageId,
+          existing.lastSyncedMessageSignature
+        )
         : normalized.messages;
 
       if (candidateMessages.length === 0) {
@@ -152,6 +190,9 @@ export class SyncPipeline {
         classification: classificationResult.classification,
         lastSyncedAt: syncedAt,
         lastSyncedMessageId: getLastMessageId(normalized),
+        lastSyncedMessageSignature: buildMessageSignature(
+          normalized.messages[normalized.messages.length - 1] || {}
+        ),
         lastContentHash: contentHash,
         updatedAt: syncedAt
       });

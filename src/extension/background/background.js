@@ -163,6 +163,14 @@ async function collectSessionFromTab(tabId) {
     if (!snapshot || !snapshot.sessionId) {
       return null;
     }
+    const messageCount = Array.isArray(snapshot.messages) ? snapshot.messages.length : 0;
+    if (messageCount === 0) {
+      logger.warn("Collected snapshot has no messages, skip persisting", {
+        tabId,
+        sessionId: snapshot.sessionId
+      });
+      return null;
+    }
     return syncService.collectSession(snapshot);
   } catch (error) {
     const message = `${error?.message || ""}`;
@@ -180,10 +188,16 @@ async function collectSessionFromTab(tabId) {
             files: ["src/extension/content/collector.js"]
           });
           const retried = await requestSnapshot();
-          if (retried && retried.sessionId) {
+          const retriedCount = Array.isArray(retried?.messages) ? retried.messages.length : 0;
+          if (retried && retried.sessionId && retriedCount > 0) {
             logger.info("Collected session after collector reinjection", { tabId, url: urlText });
             return syncService.collectSession(retried);
           }
+          logger.warn("Collector reinjection retry still got empty snapshot", {
+            tabId,
+            sessionId: retried?.sessionId || "",
+            messageCount: retriedCount
+          });
         }
       } catch (retryError) {
         logger.warn("Collector reinjection failed", {
