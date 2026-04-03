@@ -43,6 +43,12 @@ function setStatus(message) {
   node("status").textContent = message || "";
 }
 
+function showCollectPageRefreshTip(actionLabel = "采集会话") {
+  const tip = "无法采集当前页面数据，请刷新页面后重试。";
+  window.alert(tip);
+  setStatus(`${actionLabel}失败：${tip}`);
+}
+
 function formatLogTime(value) {
   const date = new Date(value || "");
   if (Number.isNaN(date.getTime())) {
@@ -364,7 +370,7 @@ node("collect-current").addEventListener("click", async () => {
     setStatus("正在采集当前会话...");
     const collected = await callRuntime("collect-current-session");
     if (!collected?.sessionId) {
-      setStatus("未采集到会话，请确认当前页是具体会话页面。");
+      showCollectPageRefreshTip("采集会话");
       return;
     }
     state.selectedSessionIds.add(collected.sessionId);
@@ -377,9 +383,21 @@ node("collect-current").addEventListener("click", async () => {
 
 node("refresh-sessions").addEventListener("click", async () => {
   try {
+    const collected = await callRuntime("collect-current-session");
+    const collectFailed = !collected?.sessionId;
+    if (collectFailed) {
+      showCollectPageRefreshTip("刷新会话");
+    } else {
+      state.selectedSessionIds.add(collected.sessionId);
+    }
+
     const sessions = await callRuntime("list-sessions");
     state.sessions = sessions;
     renderSessions(sessions);
+    if (collectFailed) {
+      setStatus(`会话数量：${sessions.length}。当前页面采集失败，请刷新页面后重试。`);
+      return;
+    }
     setStatus(`会话数量：${sessions.length}`);
   } catch (error) {
     setStatus(`刷新失败：${error.message}`);

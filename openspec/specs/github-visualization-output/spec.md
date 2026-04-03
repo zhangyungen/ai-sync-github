@@ -1,7 +1,8 @@
 # github-visualization-output Specification
 
 ## Purpose
-TBD - created by archiving change add-chatgpt-github-sync-extension. Update Purpose after archive.
+定义同步产物在 GitHub 仓库中的组织、可视化与发布可靠性要求，确保会话内容可直接浏览、可增量追溯、可重复安全发布。
+
 ## Requirements
 ### Requirement: Output Must Be GitHub-Visualizable
 系统 SHALL 将同步结果输出为 GitHub 可直接浏览的格式（Markdown 与结构化 JSON），不依赖本地专用工具即可查看。
@@ -51,6 +52,19 @@ TBD - created by archiving change add-chatgpt-github-sync-extension. Update Purp
 - **WHEN** 同步任务发布变更
 - **THEN** 系统可直接提交到目标分支且不要求创建 PR
 
+### Requirement: Publishing Must Recover from Missing Branch and SHA Conflicts
+系统 SHALL 在发布时处理常见 GitHub 内容写入冲突，包括缺失分支、缺失 SHA 和 SHA 冲突。
+
+#### Scenario: Target branch is missing
+- **GIVEN** 目标分支不存在且客户端支持分支创建
+- **WHEN** 首次文件 upsert 返回分支不存在错误
+- **THEN** 系统 MUST 尝试创建目标分支并重试发布
+
+#### Scenario: Upsert requires SHA or reports SHA mismatch
+- **GIVEN** 文件写入返回 422 缺少 sha 或 409 sha 冲突
+- **WHEN** 系统可读取目标文件最新 SHA
+- **THEN** 系统 MUST 使用最新 SHA 重试写入
+
 ### Requirement: Index Files Must Preserve History Incrementally
 系统 SHALL 对索引文件执行增量追加，不得在同步时覆盖既有历史索引记录。
 
@@ -72,4 +86,3 @@ TBD - created by archiving change add-chatgpt-github-sync-extension. Update Purp
 - **GIVEN** 会话消息包含标题与代码块
 - **WHEN** 系统生成 timeline/categorized Markdown
 - **THEN** 输出 MUST 保留原有结构语义与代码块围栏格式
-
